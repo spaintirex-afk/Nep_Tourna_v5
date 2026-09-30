@@ -8,49 +8,67 @@ on:
 
 jobs:
   build-android:
+    name: Build Nep Tourna APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Find package.json
+      - name: Find project folder
         id: project
         shell: bash
         run: |
+          echo "Searching for package.json..."
+
           PACKAGE=$(find . -name package.json -not -path "*/node_modules/*" | head -n 1)
 
           if [ -z "$PACKAGE" ]; then
-            echo "package.json not found"
+            echo "ERROR: package.json was not found"
             exit 1
           fi
 
           FOLDER=$(dirname "$PACKAGE")
 
-          echo "Found: $PACKAGE"
+          echo "package.json found at: $PACKAGE"
+          echo "Project folder: $FOLDER"
+
           echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         working-directory: ${{ steps.project.outputs.folder }}
         run: npm install
 
-      - name: Capacitor
+      - name: Check project
+        working-directory: ${{ steps.project.outputs.folder }}
+        run: |
+          echo "Project files:"
+          ls -la
+          echo ""
+          echo "Package scripts:"
+          npm run
+
+      - name: Check Capacitor
         working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap --version
 
-      - name: Create Android
+      - name: Create Android project
         working-directory: ${{ steps.project.outputs.folder }}
+        shell: bash
         run: |
-          if [ ! -d android ]; then
+          if [ ! -d "android" ]; then
+            echo "Android folder not found. Creating it..."
             npx cap add android
+          else
+            echo "Android folder already exists."
           fi
 
-      - name: Sync Android
+      - name: Sync Capacitor
         working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap sync android
 
@@ -63,11 +81,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Accept Android licenses
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses || true
 
-      - name: Build APK
+      - name: Build Android APK
         working-directory: ${{ steps.project.outputs.folder }}/android
+        shell: bash
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
