@@ -11,6 +11,10 @@ jobs:
     name: Build Nep Tourna APK
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: Nep-Tourna-GitHub-Actions-APK-Ready
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -20,12 +24,14 @@ jobs:
         with:
           node-version: 20
 
-      - name: Show project files
+      - name: Check project
         run: |
-          echo "Current directory:"
+          echo "Current folder:"
           pwd
-          echo "Project files:"
+          echo "Files:"
           ls -la
+          echo "Package:"
+          ls -l package.json
 
       - name: Install dependencies
         run: npm install
@@ -42,7 +48,7 @@ jobs:
             npx cap add android
           fi
 
-      - name: Sync Capacitor Android
+      - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Setup Java
@@ -57,8 +63,8 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Build Android APK
-        working-directory: android
+      - name: Build APK
+        working-directory: Nep-Tourna-GitHub-Actions-APK-Ready/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
@@ -67,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Nep-Tourna-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: Nep-Tourna-GitHub-Actions-APK-Ready/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
