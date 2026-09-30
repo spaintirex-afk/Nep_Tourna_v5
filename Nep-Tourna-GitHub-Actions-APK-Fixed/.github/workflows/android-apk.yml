@@ -47,7 +47,25 @@ jobs:
         working-directory: ${{ steps.find-project.outputs.project_dir }}
         run: npm install
 
+      - name: Show npm scripts
+        working-directory: ${{ steps.find-project.outputs.project_dir }}
+        run: npm run
+
+      - name: Detect build script
+        id: detect-build
+        working-directory: ${{ steps.find-project.outputs.project_dir }}
+        shell: bash
+        run: |
+          if npm run | grep -qE '^[[:space:]]+build'; then
+            echo "has_build=true" >> "$GITHUB_OUTPUT"
+            echo "Build script found."
+          else
+            echo "has_build=false" >> "$GITHUB_OUTPUT"
+            echo "No build script found."
+          fi
+
       - name: Build web application
+        if: steps.detect-build.outputs.has_build == 'true'
         working-directory: ${{ steps.find-project.outputs.project_dir }}
         run: npm run build
 
@@ -57,9 +75,12 @@ jobs:
 
       - name: Create Android project
         working-directory: ${{ steps.find-project.outputs.project_dir }}
+        shell: bash
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
+          else
+            echo "Android project already exists."
           fi
 
       - name: Sync Capacitor
@@ -80,6 +101,7 @@ jobs:
 
       - name: Build APK
         working-directory: ${{ steps.find-project.outputs.project_dir }}/android
+        shell: bash
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
