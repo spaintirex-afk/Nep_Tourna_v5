@@ -8,83 +8,66 @@ on:
 
 jobs:
   build-android:
-    name: Build Nep Tourna APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Find project folder
-        id: find-project
+      - name: Find project
+        id: project
         shell: bash
         run: |
-          echo "Searching for package.json..."
+          PROJECT=$(find . -name package.json -not -path "*/node_modules/*" -printf '%h\n' | head -n 1)
 
-          PACKAGE=$(find . -name package.json -not -path "./node_modules/*" | head -n 1)
-
-          if [ -z "$PACKAGE" ]; then
-            echo "ERROR: package.json was not found!"
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: package.json not found"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$PACKAGE")
-
-          echo "Found package.json:"
-          echo "$PACKAGE"
-
-          echo "Project directory:"
-          echo "$PROJECT_DIR"
-
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Project folder: $PROJECT"
+          echo "folder=$PROJECT" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
+        working-directory: ${{ steps.project.outputs.folder }}
         run: npm install
 
-      - name: Show npm scripts
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
-        run: npm run
+      - name: Show package scripts
+        working-directory: ${{ steps.project.outputs.folder }}
+        run: cat package.json
 
-      - name: Detect build script
-        id: detect-build
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
+      - name: Build if available
+        working-directory: ${{ steps.project.outputs.folder }}
         shell: bash
         run: |
-          if npm run | grep -qE '^[[:space:]]+build'; then
-            echo "has_build=true" >> "$GITHUB_OUTPUT"
+          if npm run 2>/dev/null | grep -q "build"; then
             echo "Build script found."
+            npm run build
           else
-            echo "has_build=false" >> "$GITHUB_OUTPUT"
             echo "No build script found."
+            echo "Continuing without npm build."
           fi
-
-      - name: Build web application
-        if: steps.detect-build.outputs.has_build == 'true'
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
-        run: npm run build
 
       - name: Check Capacitor
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
+        working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap --version
 
-      - name: Create Android project
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
+      - name: Add Android
+        working-directory: ${{ steps.project.outputs.folder }}
         shell: bash
         run: |
-          if [ ! -d "android" ]; then
+          if [ ! -d android ]; then
             npx cap add android
-          else
-            echo "Android project already exists."
           fi
 
-      - name: Sync Capacitor
-        working-directory: ${{ steps.find-project.outputs.project_dir }}
+      - name: Capacitor Sync
+        working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap sync android
 
       - name: Setup Java
@@ -93,15 +76,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
+      - name: Setup Android
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses
+      - name: Accept licenses
         run: yes | sdkmanager --licenses || true
 
       - name: Build APK
-        working-directory: ${{ steps.find-project.outputs.project_dir }}/android
-        shell: bash
+        working-directory: ${{ steps.project.outputs.folder }}/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
@@ -110,5 +92,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Nep-Tourna-Android-APK
-          path: ${{ steps.find-project.outputs.project_dir }}/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.project.outputs.folder }}/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
