@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -20,53 +19,38 @@ jobs:
         with:
           node-version: 20
 
-      - name: Find project
+      - name: Find package.json
         id: project
         shell: bash
         run: |
-          PROJECT=$(find . -name package.json -not -path "*/node_modules/*" -printf '%h\n' | head -n 1)
+          PACKAGE=$(find . -name package.json -not -path "*/node_modules/*" | head -n 1)
 
-          if [ -z "$PROJECT" ]; then
-            echo "ERROR: package.json not found"
+          if [ -z "$PACKAGE" ]; then
+            echo "package.json not found"
             exit 1
           fi
 
-          echo "Project folder: $PROJECT"
-          echo "folder=$PROJECT" >> "$GITHUB_OUTPUT"
+          FOLDER=$(dirname "$PACKAGE")
+
+          echo "Found: $PACKAGE"
+          echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         working-directory: ${{ steps.project.outputs.folder }}
         run: npm install
 
-      - name: Show package scripts
-        working-directory: ${{ steps.project.outputs.folder }}
-        run: cat package.json
-
-      - name: Build if available
-        working-directory: ${{ steps.project.outputs.folder }}
-        shell: bash
-        run: |
-          if npm run 2>/dev/null | grep -q "build"; then
-            echo "Build script found."
-            npm run build
-          else
-            echo "No build script found."
-            echo "Continuing without npm build."
-          fi
-
-      - name: Check Capacitor
+      - name: Capacitor
         working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap --version
 
-      - name: Add Android
+      - name: Create Android
         working-directory: ${{ steps.project.outputs.folder }}
-        shell: bash
         run: |
           if [ ! -d android ]; then
             npx cap add android
           fi
 
-      - name: Capacitor Sync
+      - name: Sync Android
         working-directory: ${{ steps.project.outputs.folder }}
         run: npx cap sync android
 
@@ -76,7 +60,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Accept licenses
