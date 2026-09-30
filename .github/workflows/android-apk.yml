@@ -1,0 +1,69 @@
+name: Nep Tourna Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    name: Build Nep Tourna APK
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Nep-Tourna-GitHub-Actions-APK-Ready
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Check Capacitor
+        run: npx cap --version
+
+      - name: Create Android project
+        shell: bash
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Build APK
+        working-directory: Nep-Tourna-GitHub-Actions-APK-Ready/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nep-Tourna-Android-APK
+          path: Nep-Tourna-GitHub-Actions-APK-Ready/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
