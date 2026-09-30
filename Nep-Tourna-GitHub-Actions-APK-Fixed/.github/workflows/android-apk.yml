@@ -1,0 +1,148 @@
+name: Nep Tourna Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Find project
+        id: project
+        shell: bash
+        run: |
+          echo "Searching for package.json..."
+
+          PACKAGE=$(find . -type f -name package.json \
+            -not -path "*/node_modules/*" \
+            -not -path "*/android/*" \
+            | head -n 1)
+
+          if [ -z "$PACKAGE" ]; then
+            echo "ERROR: package.json was not found."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PACKAGE")
+
+          echo "Package: $PACKAGE"
+          echo "Project: $PROJECT_DIR"
+
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: npm install
+
+      - name: Install Vite if needed
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          if [ -f vite.config.ts ] || [ -f vite.config.js ] || [ -f vite.config.mjs ]; then
+            echo "Vite project detected."
+            npm install vite --save-dev
+          fi
+
+      - name: Build web application
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          echo "Checking package.json..."
+
+          node -e "
+          const p=require('./package.json');
+          console.log('Scripts:', p.scripts || {});
+          "
+
+          if npm run | grep -qE '^[[:space:]]+build'; then
+            echo "Existing build script found."
+            npm run build
+
+          elif [ -f vite.config.ts ] || [ -f vite.config.js ] || [ -f vite.config.mjs ]; then
+            echo "Vite detected. Running Vite directly."
+            npx vite build
+
+          else
+            echo "No build script or Vite configuration found."
+            echo "Checking project files..."
+
+            ls -la
+
+            if [ -d dist ]; then
+              echo "dist folder already exists."
+            elif [ -d build ]; then
+              echo "build folder already exists."
+            else
+              echo "ERROR: Cannot determine how to build this web project."
+              exit 1
+            fi
+          fi
+
+      - name: Install Capacitor
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Check Capacitor
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: npx cap --version
+
+      - name: Create Android project
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          else
+            echo "Android project already exists."
+          fi
+
+      - name: Sync Capacitor
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Build Debug APK
+        working-directory: ${{ steps.project.outputs.dir }}/android
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Find APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          find android -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nep-Tourna-Android-APK
+          path: ${{ steps.project.outputs.dir }}/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
